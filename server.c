@@ -31,6 +31,31 @@ void parse_request_line(const char *request_line, char *method, char *path, char
     sscanf(request_line, "%s %s %s", method, path, version);
 }
 
+// Function to parse headers
+int parse_headers(const char *request, Header *headers, int max_headers) {
+    int header_count = 0;
+    const char *header_start = strstr(request, "\r\n") + 2; // Skip request line
+    const char *header_end = strstr(header_start, "\r\n\r\n");
+
+    if (!header_start || !header_end) {
+        return 0; // No headers found
+    }
+
+    char header_buffer[BUFFER_SIZE];
+    strncpy(header_buffer, header_start, header_end - header_start);
+    header_buffer[header_end - header_start] = '\0';
+
+    char *line = strtok(header_buffer, "\r\n");
+    while (line && header_count < max_headers) {
+        sscanf(line, "%[^:]: %[^\r\n]", headers[header_count].key, headers[header_count].value);
+        header_count++;
+        line = strtok(NULL, "\r\n");
+    }
+
+    return header_count;
+}
+
+
 int main() {
     int server_socket, client_socket;
     struct sockaddr_in server_addr, client_addr;
