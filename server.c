@@ -55,6 +55,54 @@ int parse_headers(const char *request, Header *headers, int max_headers) {
     return header_count;
 }
 
+// Function to handle the request
+void handle_request(int client_socket, const char *request) {
+    char method[16], path[256], version[16];
+    Header headers[10];
+    int header_count;
+
+    // Parse the request line
+    parse_request_line(request, method, path, version);
+
+    // Parse headers
+    header_count = parse_headers(request, headers, 10);
+
+    // Handle only GET requests
+    if (strcmp(method, "GET") != 0) {
+        send_response(client_socket, "405 Method Not Allowed", "text/plain", "Method Not Allowed");
+        return;
+    }
+
+    // Default to index.html if path is "/"
+    if (strcmp(path, "/") == 0) {
+        strcpy(path, "/index.html");
+    }
+
+    // Construct the full file path
+    char full_path[256];
+    snprintf(full_path, sizeof(full_path), ".%s", path);
+
+    // Try to open the file
+    FILE *file = fopen(full_path, "r");
+    if (!file) {
+        send_response(client_socket, "404 Not Found", "text/plain", "File Not Found");
+        return;
+    }
+
+    // Read the file content
+    fseek(file, 0, SEEK_END);
+    long file_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    char *file_content = malloc(file_size + 1);
+    fread(file_content, 1, file_size, file);
+    file_content[file_size] = '\0';
+    fclose(file);
+
+    // Send the file content as the response
+    send_response(client_socket, "200 OK", "text/html", file_content);
+    free(file_content);
+}
 
 int main() {
     int server_socket, client_socket;
