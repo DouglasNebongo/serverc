@@ -13,6 +13,19 @@ typedef struct {
     char value[256];
 } Header;
 
+// Function to send an HTTP response
+void send_response(int client_socket, const char *status, const char *content_type, const char *body) {
+    char response[BUFFER_SIZE];
+    snprintf(response, BUFFER_SIZE,
+             "HTTP/1.1 %s\r\n"
+             "Content-Type: %s\r\n"
+             "Content-Length: %zu\r\n"
+             "\r\n"
+             "%s",
+             status, content_type, strlen(body), body);
+    send(client_socket, response, strlen(response), 0);
+}
+
 
 
 int main() {
