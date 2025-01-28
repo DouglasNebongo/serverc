@@ -26,7 +26,10 @@ void send_response(int client_socket, const char *status, const char *content_ty
     send(client_socket, response, strlen(response), 0);
 }
 
-
+// Function to parse the request line
+void parse_request_line(const char *request_line, char *method, char *path, char *version) {
+    sscanf(request_line, "%s %s %s", method, path, version);
+}
 
 int main() {
     int server_socket, client_socket;
