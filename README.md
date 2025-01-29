@@ -1,6 +1,5 @@
 ---
 
-```
 # Simple HTTP Web Server in C
 
 This is a simple HTTP web server implemented in C. It serves static files (e.g., HTML, CSS, JavaScript) from the current directory and handles basic `GET` requests. This project is intended for educational purposes and demonstrates the fundamentals of socket programming and HTTP protocol implementation.
