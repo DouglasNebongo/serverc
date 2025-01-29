@@ -79,8 +79,13 @@ void handle_request(int client_socket, const char *request) {
     }
 
     // Construct the full file path
-    char full_path[256];
-    snprintf(full_path, sizeof(full_path), ".%s", path);
+    char *full_path = malloc(strlen(path) + 2); // +2 for '.' and null terminator
+    if (!full_path) {
+    perror("malloc failed");
+       return;
+    }
+    snprintf(full_path, strlen(path) + 2, ".%s", path);
+
 
     // Try to open the file
     FILE *file = fopen(full_path, "r");
@@ -88,7 +93,7 @@ void handle_request(int client_socket, const char *request) {
         send_response(client_socket, "404 Not Found", "text/plain", "File Not Found");
         return;
     }
-
+    free(full_path);
     // Read the file content
     fseek(file, 0, SEEK_END);
     long file_size = ftell(file);
@@ -98,6 +103,9 @@ void handle_request(int client_socket, const char *request) {
     fread(file_content, 1, file_size, file);
     file_content[file_size] = '\0';
     fclose(file);
+
+    // Print the file content to the console
+    printf("File content:\n%s\n", file_content);
 
     // Send the file content as the response
     send_response(client_socket, "200 OK", "text/html", file_content);
@@ -152,9 +160,9 @@ int main() {
             continue;
         }
         request[bytes_read] = '\0';
+        
+        printf("Request:\n%s\n", request);
 
-        //log request to console
-        printf("%s", request);
 
 
         // Handle the request
