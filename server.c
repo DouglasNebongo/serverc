@@ -23,6 +23,14 @@ void send_response(int client_socket, const char *status, const char *content_ty
              "\r\n"
              "%s",
              status, content_type, strlen(body), body);
+    // Log the response to the console
+    printf("Sending response:\n");
+    printf("Status: %s\n", status);
+    printf("Content-Type: %s\n", content_type);
+    printf("Content-Length: %zu\n", strlen(body));
+    printf("Body: %s\n", body);
+
+    // Send the response to the client
     send(client_socket, response, strlen(response), 0);
 }
 
@@ -104,8 +112,6 @@ void handle_request(int client_socket, const char *request) {
     file_content[file_size] = '\0';
     fclose(file);
 
-    // Print the file content to the console
-    printf("File content:\n%s\n", file_content);
 
     // Send the file content as the response
     send_response(client_socket, "200 OK", "text/html", file_content);
