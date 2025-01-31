@@ -114,7 +114,7 @@ void handle_request(int client_socket, const char *request) {
 
 
     // Send the file content as the response
-    send_response(client_socket, "200 OK", "text/html", file_content);
+    send_response(client_socket, "200 OK.", "text/html", file_content);
     free(file_content);
 }
 
