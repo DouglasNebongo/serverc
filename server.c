@@ -24,7 +24,7 @@ void send_response(int client_socket, const char *status, const char *content_ty
              "%s",
              status, content_type, strlen(body), body);
     // Log the response to the console
-    printf("Sending response:\n");
+    printf("Sending response to console:\n");
     printf("Status: %s\n", status);
     printf("Content-Type: %s\n", content_type);
     printf("Content-Length: %zu\n", strlen(body));
