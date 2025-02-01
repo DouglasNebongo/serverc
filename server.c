@@ -81,6 +81,12 @@ void handle_request(int client_socket, const char *request) {
         return;
     }
 
+    // Check for directory traversal
+    if (strstr(path, "..")) {
+        send_response(client_socket, "403 Forbidden", "text/plain", "Access Denied");
+        return;
+    }
+
     // Default to index.html if path is "/"
     if (strcmp(path, "/") == 0) {
         strcpy(path, "/index.html");
