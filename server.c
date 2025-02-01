@@ -105,8 +105,10 @@ void handle_request(int client_socket, const char *request) {
     FILE *file = fopen(full_path, "r");
     if (!file) {
         send_response(client_socket, "404 Not Found", "text/plain", "File Not Found");
+        free(full_path);
         return;
     }
+
     free(full_path);
     // Read the file content
     fseek(file, 0, SEEK_END);
