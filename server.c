@@ -45,6 +45,11 @@ const char *get_content_type(const char *path) {
         return "text/css";
     } else if (strcmp(ext, ".js") == 0) {
         return "application/javascript";
+        } else if (strcmp(ext, ".png") == 0) {
+        return "image/png";
+    } else if (strcmp(ext, ".jpg") == 0 || strcmp(ext, ".jpeg") == 0) {
+        return "image/jpeg";
+    }
 
 
 
