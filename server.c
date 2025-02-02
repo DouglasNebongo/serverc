@@ -34,6 +34,14 @@ void send_response(int client_socket, const char *status, const char *content_ty
     send(client_socket, response, strlen(response), 0);
 }
 
+const char *get_content_type(const char *path) {
+
+
+
+
+
+
+
 // Function to parse the request line
 void parse_request_line(const char *request_line, char *method, char *path, char *version) {
     sscanf(request_line, "%s %s %s", method, path, version);
