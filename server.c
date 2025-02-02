@@ -41,6 +41,10 @@ const char *get_content_type(const char *path) {
     }
     if (strcmp(ext, ".html") == 0 || strcmp(ext, ".htm") == 0) {
         return "text/html";
+        } else if (strcmp(ext, ".css") == 0) {
+        return "text/css";
+    } else if (strcmp(ext, ".js") == 0) {
+        return "application/javascript";
 
 
 
