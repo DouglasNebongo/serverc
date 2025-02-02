@@ -35,6 +35,12 @@ void send_response(int client_socket, const char *status, const char *content_ty
 }
 
 const char *get_content_type(const char *path) {
+    const char *ext = strrchr(path, '.');
+    if (!ext) {
+        return "application/octet-stream";
+    }
+    if (strcmp(ext, ".html") == 0 || strcmp(ext, ".htm") == 0) {
+        return "text/html";
 
 
 
