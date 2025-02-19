@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <pthread.h>
 
 #define PORT 8080
 #define BUFFER_SIZE 4096
@@ -41,21 +42,24 @@ const char *get_content_type(const char *path) {
     }
     if (strcmp(ext, ".html") == 0 || strcmp(ext, ".htm") == 0) {
         return "text/html";
-        } else if (strcmp(ext, ".css") == 0) {
+    } else if (strcmp(ext, ".css") == 0) {
         return "text/css";
     } else if (strcmp(ext, ".js") == 0) {
         return "application/javascript";
-        } else if (strcmp(ext, ".png") == 0) {
+    } else if (strcmp(ext, ".png") == 0) {
         return "image/png";
     } else if (strcmp(ext, ".jpg") == 0 || strcmp(ext, ".jpeg") == 0) {
         return "image/jpeg";
+    } else if (strcmp(ext, ".gif") == 0) {
+        return "image/gif";
+    } else if (strcmp(ext, ".svg") == 0) {
+        return "image/svg+xml";
+    } else if (strcmp(ext, ".ico") == 0) {
+        return "image/x-icon";
+    } else {
+        return "application/octet-stream";
     }
-
-
-
-
-
-
+}
 
 // Function to parse the request line
 void parse_request_line(const char *request_line, char *method, char *path, char *version) {
@@ -118,11 +122,10 @@ void handle_request(int client_socket, const char *request) {
     // Construct the full file path
     char *full_path = malloc(strlen(path) + 2); // +2 for '.' and null terminator
     if (!full_path) {
-    perror("malloc failed");
-       return;
+        perror("malloc failed");
+        return;
     }
     snprintf(full_path, strlen(path) + 2, ".%s", path);
-
 
     // Try to open the file
     FILE *file = fopen(full_path, "r");
@@ -143,10 +146,24 @@ void handle_request(int client_socket, const char *request) {
     file_content[file_size] = '\0';
     fclose(file);
 
-
     // Send the file content as the response
-    send_response(client_socket, "200 OK.", "text/html", file_content);
+    send_response(client_socket, "200 OK", get_content_type(path), file_content);
     free(file_content);
+}
+
+// Structure to pass client socket to the thread
+typedef struct {
+    int client_socket;
+    char request[BUFFER_SIZE];
+} ThreadData;
+
+// Thread function to handle client requests
+void *handle_client_thread(void *arg) {
+    ThreadData *data = (ThreadData *)arg;
+    handle_request(data->client_socket, data->request);
+    close(data->client_socket);
+    free(data);
+    return NULL;
 }
 
 int main() {
@@ -200,13 +217,26 @@ int main() {
         
         printf("Request:\n%s\n", request);
 
+        // Create a new thread to handle the request
+        ThreadData *data = malloc(sizeof(ThreadData));
+        if (!data) {
+            perror("malloc failed");
+            close(client_socket);
+            continue;
+        }
+        data->client_socket = client_socket;
+        strncpy(data->request, request, BUFFER_SIZE);
 
+        pthread_t thread;
+        if (pthread_create(&thread, NULL, handle_client_thread, data) != 0) {
+            perror("pthread_create failed");
+            free(data);
+            close(client_socket);
+            continue;
+        }
 
-        // Handle the request
-        handle_request(client_socket, request);
-
-        // Close the client socket
-        close(client_socket);
+        // Detach the thread to handle its own cleanup
+        pthread_detach(thread);
     }
 
     // Close the server socket (this will never be reached in this example)
