@@ -4,15 +4,30 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include <signal.h>
+#include <stdatomic.h>
 
 #define PORT 8080
 #define BUFFER_SIZE 4096
+#define MAX_THREADS 10
+#define MAX_HEADERS 10
 
 // Structure to store HTTP headers
 typedef struct {
     char key[256];
     char value[256];
 } Header;
+
+// Thread pool structure
+typedef struct {
+    pthread_t threads[MAX_THREADS];
+    atomic_int shutdown;
+} ThreadPool;
+
+// Function to log messages
+void log_message(const char *message) {
+    printf("[LOG] %s\n", message);
+}
 
 // Function to send an HTTP response
 void send_response(int client_socket, const char *status, const char *content_type, const char *body) {
@@ -24,17 +39,16 @@ void send_response(int client_socket, const char *status, const char *content_ty
              "\r\n"
              "%s",
              status, content_type, strlen(body), body);
-    // Log the response to the console
-    printf("Sending response to console:\n");
-    printf("Status: %s\n", status);
-    printf("Content-Type: %s\n", content_type);
-    printf("Content-Length: %zu\n", strlen(body));
-    printf("Body: %s\n", body);
 
-    // Send the response to the client
-    send(client_socket, response, strlen(response), 0);
+    log_message("Sending response:");
+    log_message(response);
+
+    if (send(client_socket, response, strlen(response), 0) < 0) {
+        perror("send failed");
+    }
 }
 
+// Function to determine content type based on file extension
 const char *get_content_type(const char *path) {
     const char *ext = strrchr(path, '.');
     if (!ext) {
@@ -93,14 +107,14 @@ int parse_headers(const char *request, Header *headers, int max_headers) {
 // Function to handle the request
 void handle_request(int client_socket, const char *request) {
     char method[16], path[256], version[16];
-    Header headers[10];
+    Header headers[MAX_HEADERS];
     int header_count;
 
     // Parse the request line
     parse_request_line(request, method, path, version);
 
     // Parse headers
-    header_count = parse_headers(request, headers, 10);
+    header_count = parse_headers(request, headers, MAX_HEADERS);
 
     // Handle only GET requests
     if (strcmp(method, "GET") != 0) {
@@ -120,28 +134,27 @@ void handle_request(int client_socket, const char *request) {
     }
 
     // Construct the full file path
-    char *full_path = malloc(strlen(path) + 2); // +2 for '.' and null terminator
-    if (!full_path) {
-        perror("malloc failed");
-        return;
-    }
-    snprintf(full_path, strlen(path) + 2, ".%s", path);
+    char full_path[258];
+    snprintf(full_path, sizeof(full_path), ".%s", path);
 
     // Try to open the file
     FILE *file = fopen(full_path, "r");
     if (!file) {
         send_response(client_socket, "404 Not Found", "text/plain", "File Not Found");
-        free(full_path);
         return;
     }
 
-    free(full_path);
     // Read the file content
     fseek(file, 0, SEEK_END);
     long file_size = ftell(file);
     fseek(file, 0, SEEK_SET);
 
     char *file_content = malloc(file_size + 1);
+    if (!file_content) {
+        perror("malloc failed");
+        fclose(file);
+        return;
+    }
     fread(file_content, 1, file_size, file);
     file_content[file_size] = '\0';
     fclose(file);
@@ -166,10 +179,31 @@ void *handle_client_thread(void *arg) {
     return NULL;
 }
 
+// Signal handler for graceful shutdown
+void handle_shutdown(int sig) {
+    log_message("Shutting down server...");
+    exit(0);
+}
+
+// Initialize thread pool
+void init_thread_pool(ThreadPool *pool) {
+    for (int i = 0; i < MAX_THREADS; i++) {
+        pool->threads[i] = 0;
+    }
+    pool->shutdown = 0;
+}
+
 int main() {
     int server_socket, client_socket;
     struct sockaddr_in server_addr, client_addr;
     socklen_t client_len = sizeof(client_addr);
+    ThreadPool pool;
+
+    // Initialize thread pool
+    init_thread_pool(&pool);
+
+    // Set up signal handler for graceful shutdown
+    signal(SIGINT, handle_shutdown);
 
     // Create socket
     server_socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -195,9 +229,9 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    printf("Server is running on http://localhost:%d\n", PORT);
+    log_message("Server is running on http://localhost:8080");
 
-    while (1) {
+    while (!pool.shutdown) {
         // Accept a connection
         client_socket = accept(server_socket, (struct sockaddr *)&client_addr, &client_len);
         if (client_socket < 0) {
@@ -214,8 +248,9 @@ int main() {
             continue;
         }
         request[bytes_read] = '\0';
-        
-        printf("Request:\n%s\n", request);
+
+        log_message("Received request:");
+        log_message(request);
 
         // Create a new thread to handle the request
         ThreadData *data = malloc(sizeof(ThreadData));
@@ -239,7 +274,8 @@ int main() {
         pthread_detach(thread);
     }
 
-    // Close the server socket (this will never be reached in this example)
+    // Close the server socket
     close(server_socket);
+    log_message("Server shutdown complete.");
     return 0;
 }
