@@ -6,11 +6,15 @@
 #include <pthread.h>
 #include <signal.h>
 #include <stdatomic.h>
+#include <errno.h>
 
 #define PORT 8080
 #define BUFFER_SIZE 4096
 #define MAX_THREADS 10
 #define MAX_HEADERS 10
+#define MAX_PATH_LENGTH 256
+#define MAX_METHOD_LENGTH 16
+#define MAX_VERSION_LENGTH 16
 
 // Structure to store HTTP headers
 typedef struct {
@@ -106,7 +110,7 @@ int parse_headers(const char *request, Header *headers, int max_headers) {
 
 // Function to handle the request
 void handle_request(int client_socket, const char *request) {
-    char method[16], path[256], version[16];
+    char method[MAX_METHOD_LENGTH], path[MAX_PATH_LENGTH], version[MAX_VERSION_LENGTH];
     Header headers[MAX_HEADERS];
     int header_count;
 
@@ -134,7 +138,7 @@ void handle_request(int client_socket, const char *request) {
     }
 
     // Construct the full file path
-    char full_path[258];
+    char full_path[MAX_PATH_LENGTH + 2];
     snprintf(full_path, sizeof(full_path), ".%s", path);
 
     // Try to open the file
