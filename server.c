@@ -8,6 +8,7 @@
 #include <signal.h>
 #include <errno.h>
 #include <signal.h>
+#include<strings.h>
 
 #define PORT 8080
 #define BUFFER_SIZE 4096
