@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -6,7 +7,7 @@
 #include <pthread.h>
 #include <signal.h>
 #include <errno.h>
-
+#include <signal.h>
 
 #define PORT 8080
 #define BUFFER_SIZE 4096
@@ -16,19 +17,16 @@
 #define MAX_VERSION_LENGTH 16
 #define THREAD_POOL_SIZE 10
 
-// Structure to store HTTP headers
 typedef struct {
     char key[256];
     char value[256];
 } Header;
 
-// Job structure for thread pool
 typedef struct Job {
     int client_socket;
     struct Job* next;
 } Job;
 
-// Job queue structure
 typedef struct {
     Job *head;
     Job *tail;
@@ -37,16 +35,12 @@ typedef struct {
 } JobQueue;
 
 JobQueue job_queue = { NULL, NULL, PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER };
-
-// Global flag for server running (used for graceful shutdown)
 volatile sig_atomic_t running = 1;
 
-// Function to log messages
 void log_message(const char *message) {
     printf("[LOG] %s\n", message);
 }
 
-// Function to send an HTTP response
 void send_response(int client_socket, const char *status, const char *content_type, const char *body) {
     char header[BUFFER_SIZE];
     int body_length = (int)strlen(body);
@@ -71,7 +65,6 @@ void send_response(int client_socket, const char *status, const char *content_ty
     }
 }
 
-// Function to determine content type based on file extension
 const char *get_content_type(const char *path) {
     const char *ext = strrchr(path, '.');
     if (!ext) {
@@ -93,25 +86,24 @@ const char *get_content_type(const char *path) {
         return "image/svg+xml";
     } else if (strcasecmp(ext, ".ico") == 0) {
         return "image/x-icon";
+    } else if (strcasecmp(ext, ".pdf") == 0) {
+        return "application/pdf";
     } else {
         return "application/octet-stream";
     }
 }
 
-// Function to parse the request line
 void parse_request_line(const char *request_line, char *method, char *path, char *version) {
-    // Use width specifiers to avoid buffer overflow
     sscanf(request_line, "%15s %255s %15s", method, path, version);
 }
 
-// Function to parse headers
 int parse_headers(const char *request, Header *headers, int max_headers) {
     int header_count = 0;
     const char *header_start = strstr(request, "\r\n");
     if (!header_start) {
         return 0;
     }
-    header_start += 2; // Skip the request line
+    header_start += 2;
 
     const char *header_end = strstr(header_start, "\r\n\r\n");
     if (!header_end) {
@@ -137,7 +129,6 @@ int parse_headers(const char *request, Header *headers, int max_headers) {
     return header_count;
 }
 
-// Function to handle the HTTP request
 void handle_request(int client_socket, const char *request) {
     char method[MAX_METHOD_LENGTH] = {0};
     char path[MAX_PATH_LENGTH] = {0};
@@ -148,19 +139,16 @@ void handle_request(int client_socket, const char *request) {
     parse_request_line(request, method, path, version);
     header_count = parse_headers(request, headers, MAX_HEADERS);
 
-    // Only allow GET requests
     if (strcasecmp(method, "GET") != 0) {
         send_response(client_socket, "405 Method Not Allowed", "text/plain", "Method Not Allowed");
         return;
     }
 
-    // Prevent directory traversal
     if (strstr(path, "..")) {
         send_response(client_socket, "403 Forbidden", "text/plain", "Access Denied");
         return;
     }
 
-    // Default to index.html if path is "/"
     if (strcmp(path, "/") == 0) {
         strcpy(path, "/index.html");
     }
@@ -207,7 +195,6 @@ void handle_request(int client_socket, const char *request) {
     free(file_content);
 }
 
-// Worker thread function for the thread pool
 void *worker_thread(void *arg) {
     (void)arg;
     char request[BUFFER_SIZE];
@@ -230,7 +217,6 @@ void *worker_thread(void *arg) {
             int client_socket = job->client_socket;
             free(job);
 
-            // Read the client's request
             ssize_t bytes_read = recv(client_socket, request, sizeof(request) - 1, 0);
             if (bytes_read < 0) {
                 perror("recv failed");
@@ -249,7 +235,6 @@ void *worker_thread(void *arg) {
     return NULL;
 }
 
-// Add a new job (client connection) to the job queue
 void add_job(int client_socket) {
     Job *new_job = malloc(sizeof(Job));
     if (!new_job) {
@@ -272,12 +257,25 @@ void add_job(int client_socket) {
     pthread_mutex_unlock(&job_queue.mutex);
 }
 
-// Signal handler for graceful shutdown
+void cleanup_job_queue() {
+    pthread_mutex_lock(&job_queue.mutex);
+    Job *job = job_queue.head;
+    while (job) {
+        Job *next = job->next;
+        close(job->client_socket);
+        free(job);
+        job = next;
+    }
+    job_queue.head = job_queue.tail = NULL;
+    pthread_mutex_unlock(&job_queue.mutex);
+}
+
 void handle_shutdown(int sig) {
     (void)sig;
     running = 0;
     log_message("Shutting down server...");
     pthread_cond_broadcast(&job_queue.cond);
+    cleanup_job_queue();
 }
 
 int main() {
@@ -286,7 +284,6 @@ int main() {
     socklen_t client_len = sizeof(client_addr);
     struct sigaction sa;
 
-    // Set up the signal handler using sigaction
     sa.sa_handler = handle_shutdown;
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = 0;
@@ -295,14 +292,12 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    // Create the server socket
     server_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (server_socket < 0) {
         perror("socket failed");
         exit(EXIT_FAILURE);
     }
 
-    // Allow address reuse
     int opt = 1;
     if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
         perror("setsockopt failed");
@@ -310,7 +305,6 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    // Bind the socket to the specified port
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(PORT);
@@ -320,7 +314,6 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    // Listen for incoming connections
     if (listen(server_socket, 10) < 0) {
         perror("listen failed");
         close(server_socket);
@@ -329,7 +322,6 @@ int main() {
 
     log_message("Server is running on http://localhost:8080");
 
-    // Create the worker thread pool
     pthread_t threads[THREAD_POOL_SIZE];
     for (int i = 0; i < THREAD_POOL_SIZE; i++) {
         if (pthread_create(&threads[i], NULL, worker_thread, NULL) != 0) {
@@ -337,21 +329,18 @@ int main() {
         }
     }
 
-    // Main loop: accept new connections and add them as jobs
     while (running) {
         client_socket = accept(server_socket, (struct sockaddr *)&client_addr, &client_len);
         if (client_socket < 0) {
-            if (errno == EINTR) continue; // Interrupted by signal, check running flag
+            if (errno == EINTR) continue;
             perror("accept failed");
             continue;
         }
         add_job(client_socket);
     }
 
-    // Close the server socket
     close(server_socket);
 
-    // Wait for all worker threads to finish
     for (int i = 0; i < THREAD_POOL_SIZE; i++) {
         pthread_join(threads[i], NULL);
     }
