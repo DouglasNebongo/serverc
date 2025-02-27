@@ -61,9 +61,9 @@ void send_response(int client_socket, const char *status, const char *content_ty
         return;
     }
     
-    if (send(client_socket, body, body_length, 0) < 0) {
-        perror("send body failed");
-    }
+    // if (send(client_socket, body, body_length, 0) < 0) {
+    //     perror("send body failed");
+    // }
 }
 
 const char *get_content_type(const char *path) {
